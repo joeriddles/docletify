@@ -11,12 +11,13 @@
 			<attribute name="maven.pomderived" value="true"/>
 		</attributes>
 	</classpathentry>
-	<classpathentry kind="lib" path="C:/Users/joeri/eclipse-workspace/doclitify/tools.jar"/>
+	<classpathentry kind="lib" path="C:/Users/joeri/eclipse-workspace/docletify/tools.jar"/>
 	<classpathentry kind="con" path="org.eclipse.m2e.MAVEN2_CLASSPATH_CONTAINER">
 		<attributes>
 			<attribute name="maven.pomderived" value="true"/>
 		</attributes>
 	</classpathentry>
-	<classpathentry kind="lib" path="C:/Users/joeri/eclipse-workspace/doclitify/mongo-java-driver-3.11.0-beta2.jar"/>
+	<classpathentry kind="lib" path="C:/Users/joeri/eclipse-workspace/docletify/mysql-connector-java-5.1.47.jar"/>
+	<classpathentry kind="lib" path="C:/Users/joeri/eclipse-workspace/docletify/gson-2.8.5.jar"/>
 	<classpathentry kind="output" path="target/classes"/>
 </classpath>

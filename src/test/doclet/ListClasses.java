@@ -1,10 +1,23 @@
 package test.doclet;
 
-import com.mongodb.*;
 import com.sun.javadoc.*;
+
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+import com.google.gson.*;
 
 public class ListClasses {
 	public static boolean start(RootDoc rootDoc) {
+		
+		List<DocletifyClass> classes = new ArrayList<DocletifyClass>();
+		
+//		Gson gson = new Gson();
+		
 		for(ClassDoc classDoc: rootDoc.classes()) {
 
 			ConstructorDoc[] constructors = 	classDoc.constructors();
@@ -26,20 +39,52 @@ public class ListClasses {
 			boolean	isExternalizable = 	classDoc.isExternalizable();
 			boolean isSerializable =	classDoc.isSerializable();
 
-			System.out.println(classDoc.typeName());
+			PackageDoc packageDoc = classDoc.containingPackage();
+			
+			String className = classDoc.typeName();
+			String packName = packageDoc.name();
+			
+			DocletifyClass dClass = new DocletifyClass(className);
+			classes.add(dClass);
 
-//			BasicDBObject document = new BasicDBObject();
-//			document.put("class_name", classDoc.typeName());
-//
-//			MongoClient client = getMongoClient();
-//			for (String database : client.listDatabaseNames()) {
-//				System.out.println(database);
-//				MongoDatabase mongoDatabase = client.getDatabase(database);
-//				for (String collection : mongoDatabase.listCollectionNames()) {
-//					System.out.println(collection);
+			System.out.println(className + "," + packName);
+			
+//			if (methods != null) {
+//				for (MethodDoc mDoc : methods) {
+//					if (mDoc != null)
+//						dClass.methods.add(mDoc.name());
 //				}
 //			}
+			
+//			System.out.println("{\"class\":\"" + className + "\"}");
+			
+//			try {
+//				String json = gson.toJson(dClass);
+//				System.out.println(json);
+//			} catch (Exception e) {
+//				System.out.println(e.getMessage());
+//			}
+			
 		}
+		
 		return true;
+	}
+	
+	public static void write(List<DocletifyClass> classes) {
+		File file = new File("C:\\Users\\joeri\\eclipse-workspace\\docletify\\classes.txt");
+		if (file.exists()) {
+			file.delete();
+		}
+		
+		try {
+			file.createNewFile();
+			BufferedWriter writer = new BufferedWriter(new FileWriter(file));
+			for (DocletifyClass dClass : classes) {
+				writer.write(dClass.packageName + "." + dClass.name);
+			}
+			writer.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 	}
 }
