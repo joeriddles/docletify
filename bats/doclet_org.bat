@@ -1,0 +1,1 @@
+bash -c "cd /mnt/c/Users/joeri/eclipse-workspace/docletify/ && javadoc -docletpath ./target/classes -doclet test.doclet.ListClasses -private -sourcepath /mnt/c/Users/joeri/Desktop/Doclet/openjdk-8u40-src-b25-10_feb_2015/openjdk/jdk/src/share/classes/ -subpackages org.ietf.jgss org.jcp.xml.dsig.internal org.jcp.xml.dsig.internal.dom -exclude lang.doc-files > ./bash_output.txt"

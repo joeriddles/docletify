@@ -45,9 +45,17 @@ public class ListClasses {
 			String packName = packageDoc.name();
 			
 			DocletifyClass dClass = new DocletifyClass(className);
+
+			// Constructors
+			for (ConstructorDoc con : constructors) {
+				for (AnnotationDesc ann : con.annotations()) {
+					
+				}
+			}
+			
 			classes.add(dClass);
 
-			System.out.println(className + "," + packName);
+			System.out.println("class:" + className + "," + packName);
 			
 //			if (methods != null) {
 //				for (MethodDoc mDoc : methods) {

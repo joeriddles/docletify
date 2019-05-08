@@ -1,11 +1,11 @@
 -- phpMyAdmin SQL Dump
--- version 4.8.3
+-- version 4.8.5
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: May 07, 2019 at 12:09 AM
--- Server version: 10.1.35-MariaDB
--- PHP Version: 7.2.9
+-- Generation Time: May 09, 2019 at 12:23 AM
+-- Server version: 10.1.39-MariaDB
+-- PHP Version: 7.3.5
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 SET AUTOCOMMIT = 0;
@@ -21,6 +21,8 @@ SET time_zone = "+00:00";
 --
 -- Database: `docletify`
 --
+CREATE DATABASE IF NOT EXISTS `docletify` DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci;
+USE `docletify`;
 
 -- --------------------------------------------------------
 
@@ -35,6 +37,43 @@ CREATE TABLE `class` (
   `fields` varchar(255) NOT NULL,
   `constructors` varchar(255) NOT NULL,
   `methods` varchar(255) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `constructor`
+--
+
+CREATE TABLE `constructor` (
+  `modifier` varchar(255) NOT NULL,
+  `type` varchar(255) NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `description` varchar(255) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `field`
+--
+
+CREATE TABLE `field` (
+  `modifier` varchar(255) NOT NULL,
+  `type` varchar(255) NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `description` varchar(255) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `method`
+--
+
+CREATE TABLE `method` (
+  `description` varchar(255) NOT NULL,
+  `name` varchar(255) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 --

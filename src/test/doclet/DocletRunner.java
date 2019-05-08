@@ -11,14 +11,76 @@ import com.google.gson.*;
 
 public class DocletRunner {
 
-	public static boolean isWindows = System.getProperty("os.name").toLowerCase().startsWith("windows");
+	public final static String userDir = System.getProperty("user.dir") + "\\";
+	public final static boolean isWindows = System.getProperty("os.name").toLowerCase().startsWith("windows");
 	
 	public static void main(String[] args) throws IOException, InterruptedException {
+		
+		String[] docletFiles = new String[] {
+				"doclet_com",
+				"doclet_java",
+				"doclet_javax",
+				"doclet_jdk",
+				"doclet_org",
+				"doclet_sun"
+		};
+		
+		for (String docletFile : docletFiles) {
+			buildJavadoc(docletFile);
+			List<DocletifyClass> classes = readJavadocFile();
+			addClassesToSQL(classes);
+		}
+		
+		System.exit(0);
+	}
+	
+	private static void buildJavadoc(String docletFileName) throws IOException, InterruptedException {
+		ProcessBuilder builder = new ProcessBuilder();
+		if (isWindows) {
+		    builder.command("cmd.exe", "/c", userDir + "bats\\" + docletFileName + ".bat");
+		} else {
+		    builder.command("sh", "-c", "ls");
+		}
+		builder.directory(new File(System.getProperty("user.home")));
+		Process process = builder.start();
+		StreamGobbler streamGobbler = new StreamGobbler(process.getInputStream(), System.out::println);
+		Executors.newSingleThreadExecutor().submit(streamGobbler);
+		int exitCode = process.waitFor();
+		assert exitCode == 0;
 
-		buildJavadoc();
-		List<DocletifyClass> classes = readJavadocFile();
-        
-        Connection conn = null;
+		System.out.println("Done building javadoc for: " + docletFileName);
+	}
+
+	private static List<DocletifyClass> readJavadocFile() throws FileNotFoundException {
+	    File javadocFile = new File(userDir + "bash_output.txt");
+
+	    if(!javadocFile.exists())
+            return null;
+	    
+	    Scanner scan = new Scanner(javadocFile);
+
+	    String[] skip = new String[] {"Loading source files", "Constructing Javadoc"};
+        List<DocletifyClass> classes = new ArrayList<>();
+
+        String line = null;
+	    while (scan.hasNextLine()) {
+	        line = scan.nextLine();
+	        if (!line.startsWith(skip[0]) && !line.startsWith(skip[1])) {
+                DocletifyClass dClass = parseClass(line);
+                if (dClass != null) {
+                	classes.add(dClass);	
+                }
+            }
+        }
+	    
+	    scan.close();
+	    javadocFile.delete();
+
+	    return classes;
+    }
+	
+	private static void addClassesToSQL(List<DocletifyClass> classes) {
+		Connection conn = null;
         try {
         	String url = "jdbc:mysql://localhost:3306/docletify";
         	String user = "BigTasty";
@@ -43,7 +105,7 @@ public class DocletRunner {
         	if (getAll.execute()) {
             	ResultSet set = getAll.getResultSet();
             	while (set.next()) {
-            		System.out.println(set.getString(1) + " " + set.getString(2));
+//            		System.out.println(set.getString(1) + " " + set.getString(2));
             		set.next();
             	}
         	} else {
@@ -59,51 +121,17 @@ public class DocletRunner {
         		 System.out.println(ex.getMessage());
         	}
         }
-        
-		System.exit(0);
 	}
 	
-	private static void buildJavadoc() throws IOException, InterruptedException {
-		ProcessBuilder builder = new ProcessBuilder();
-		if (isWindows) {
-		    builder.command("cmd.exe", "/c", "C:\\Users\\joeri\\eclipse-workspace\\docletify\\doclet_old.bat");
-		} else {
-		    builder.command("sh", "-c", "ls");
+	private static DocletifyClass parseClass(String line) {
+		if (line == null) return null;
+		String[] isClass = line.split(":");
+		if (isClass.length == 2) {
+			String[] split = line.split(",");
+	        if (split.length == 2) {
+	            return new DocletifyClass(split[0], split[1]);
+	        }
 		}
-		builder.directory(new File(System.getProperty("user.home")));
-		Process process = builder.start();
-		StreamGobbler streamGobbler = new StreamGobbler(process.getInputStream(), System.out::println);
-		Executors.newSingleThreadExecutor().submit(streamGobbler);
-		int exitCode = process.waitFor();
-		assert exitCode == 0;
-
-		System.out.println("Done building javadoc.");
+		return null;
 	}
-
-	private static List<DocletifyClass> readJavadocFile() throws FileNotFoundException {
-	    File javadocFile = new File("C:\\Users\\joeri\\eclipse-workspace\\docletify\\bash_output.txt");
-
-	    if(!javadocFile.exists())
-            return null;
-	    
-	    Scanner scan = new Scanner(javadocFile);
-
-	    String[] skip = new String[] {"Loading source files", "Constructing Javadoc"};
-        List<DocletifyClass> classes = new ArrayList<>();
-
-        String line = null;
-	    while (scan.hasNextLine()) {
-	        line = scan.nextLine();
-	        if (!line.startsWith(skip[0]) && !line.startsWith(skip[1])) {
-                String[] split = line.split(",");
-                DocletifyClass dClass = new DocletifyClass(split[0], split[1]);
-                classes.add(dClass);
-            }
-        }
-	    
-	    scan.close();
-	    javadocFile.delete();
-
-	    return classes;
-    }
 }
