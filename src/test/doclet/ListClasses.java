@@ -1,23 +1,31 @@
 package test.doclet;
 
-import com.sun.javadoc.*;
-
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
+import java.io.Writer;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
-import com.google.gson.*;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+
+import com.sun.javadoc.AnnotationDesc;
+import com.sun.javadoc.ClassDoc;
+import com.sun.javadoc.ConstructorDoc;
+import com.sun.javadoc.FieldDoc;
+import com.sun.javadoc.MethodDoc;
+import com.sun.javadoc.PackageDoc;
+import com.sun.javadoc.ParamTag;
+import com.sun.javadoc.RootDoc;
+import com.sun.javadoc.Type;
+import com.sun.javadoc.TypeVariable; 
 
 public class ListClasses {
 	public static boolean start(RootDoc rootDoc) {
 		
-		List<DocletifyClass> classes = new ArrayList<DocletifyClass>();
-		
-//		Gson gson = new Gson();
-		
+		List<DocletifyClass> classes = new ArrayList<DocletifyClass>();		
 		for(ClassDoc classDoc: rootDoc.classes()) {
 
 			ConstructorDoc[] constructors = 	classDoc.constructors();
@@ -42,20 +50,40 @@ public class ListClasses {
 			PackageDoc packageDoc = classDoc.containingPackage();
 			
 			String className = classDoc.typeName();
-			String packName = packageDoc.name();
+			String packageName = packageDoc.name();
+		
+			JSONObject jsonClass = new JSONObject();
+			jsonClass.put("class_name", className);
+			jsonClass.put("package_name", packageName);
 			
-			DocletifyClass dClass = new DocletifyClass(className);
-
-			// Constructors
-			for (ConstructorDoc con : constructors) {
-				for (AnnotationDesc ann : con.annotations()) {
-					
-				}
+			// Fields
+			JSONArray jsonFields = new JSONArray();
+			for (FieldDoc fieldDoc : fields) {
+				jsonFields.add(fieldDoc.name());
 			}
+			jsonClass.put("fields", jsonFields);
 			
-			classes.add(dClass);
+			// Constructors
+			JSONArray jsonConstructors = new JSONArray();
+			for (ConstructorDoc constructorDoc : constructors) {
+				jsonFields.add(constructorDoc.name());
+			}
+			jsonClass.put("constructors", jsonConstructors);
+			
+			// Methods
+			JSONArray jsonMethods = new JSONArray();
+			for (MethodDoc methodDoc : methods) {
+				JSONObject jsonMethod = new JSONObject();
+				jsonMethod.put("method_name", methodDoc.name());
+				jsonMethod.put("description", methodDoc.commentText());
+				
+				jsonMethods.add(jsonMethod);
+			}
+			jsonClass.put("methods", jsonMethods);			
 
-			System.out.println("class:" + className + "," + packName);
+			System.out.println(jsonClass.toJSONString());
+			
+//			System.out.println("class:" + className + "," + packName);
 			
 //			if (methods != null) {
 //				for (MethodDoc mDoc : methods) {
@@ -65,34 +93,8 @@ public class ListClasses {
 //			}
 			
 //			System.out.println("{\"class\":\"" + className + "\"}");
-			
-//			try {
-//				String json = gson.toJson(dClass);
-//				System.out.println(json);
-//			} catch (Exception e) {
-//				System.out.println(e.getMessage());
-//			}
-			
 		}
 		
 		return true;
-	}
-	
-	public static void write(List<DocletifyClass> classes) {
-		File file = new File("C:\\Users\\joeri\\eclipse-workspace\\docletify\\classes.txt");
-		if (file.exists()) {
-			file.delete();
-		}
-		
-		try {
-			file.createNewFile();
-			BufferedWriter writer = new BufferedWriter(new FileWriter(file));
-			for (DocletifyClass dClass : classes) {
-				writer.write(dClass.packageName + "." + dClass.name);
-			}
-			writer.close();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
 	}
 }

@@ -6,20 +6,15 @@ import java.util.List;
 public class DocletifyClass {
 	public String name, packageName;
 	public DocletifyType type;
-	public List<String> fields, constructors, methods;
+	public List<String> fields, constructors;
+	public List<DocletifyMethod> methods;
 	
 	public DocletifyClass() {
-		fields = new ArrayList<String>();
-		constructors = new ArrayList<String>();
-		methods = new ArrayList<String>();
+		this("", "");
 	}
 	
 	public DocletifyClass(String name) {
-		this.name = name;
-		
-		fields = new ArrayList<String>();
-		constructors = new ArrayList<String>();
-		methods = new ArrayList<String>();
+		this(name, "");
 	}
 	
 	public DocletifyClass(String name, String packageName) {
@@ -28,6 +23,6 @@ public class DocletifyClass {
 		
 		fields = new ArrayList<String>();
 		constructors = new ArrayList<String>();
-		methods = new ArrayList<String>();
+		methods = new ArrayList<DocletifyMethod>();
 	}
 }
