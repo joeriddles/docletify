@@ -1,28 +1,32 @@
 package test.doclet;
 
 import java.io.*;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
 import java.util.concurrent.Executors;
 
-import org.json.simple.JSONArray;
-import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
-
-//import com.sun.javadoc.*;
-import java.sql.*;
+import org.apache.http.client.ClientProtocolException;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class DocletRunner {
 
-	public final static String userDir = System.getProperty("user.dir") + "\\";
-	public final static boolean isWindows = System.getProperty("os.name").toLowerCase().startsWith("windows");
+	private final static String userDir = System.getProperty("user.dir") + "\\";
+	private final static boolean isWindows = System.getProperty("os.name").toLowerCase().startsWith("windows");
+	private final static ObjectMapper mapper = new ObjectMapper();
+	private final static String url = "http://localhost/docletify/api/";
 	
 	public static void main(String[] args) throws IOException, InterruptedException {
-//		String[] javadocargs = {};
-//		com.sun.tools.javadoc.Main.execute(javadocargs);
-		
+				
 		String[] docletFileNames = new String[] {
 				"doclet_com",
 				"doclet_java",
@@ -32,20 +36,15 @@ public class DocletRunner {
 				"doclet_sun"
 		};
 		
+		// Run custom doclet from bash instance
 		buildJavadocs(docletFileNames);
-		List<List<DocletifyClass>> classes = readJavadocFiles(docletFileNames);
 		
-		int total = 0;
-		for (List<DocletifyClass> dClass : classes) total += dClass.size();
+		// Read in info from text files output from doclet
+		List<List<DocletifyClass>> classes = readJavadocFiles(docletFileNames);		
 		
+		// Add info to SQL database through PHP API
 		addAllClassesToSQL(classes);
-		
-//		for (String docletFile : docletFileNames) {
-//			buildJavadoc(docletFile);
-//			List<DocletifyClass> dClasses = readJavadocFile(docletFile);
-//			addClassesToSQL(dClasses);
-//		}
-		
+				
 		System.exit(0);
 	}
 	
@@ -81,139 +80,271 @@ public class DocletRunner {
 	private static List<List<DocletifyClass>> readJavadocFiles(String[] docletFileNames) {
 		List<List<DocletifyClass>> classes = new ArrayList<List<DocletifyClass>>(docletFileNames.length);
 		for (int i = 0; i < docletFileNames.length; i++) {
-			try {
-				classes.add(readJavadocFile(docletFileNames[i]));
-			} catch (FileNotFoundException e) {
-				e.printStackTrace();
+			List<DocletifyClass> dClasses = readJavadocFile(docletFileNames[i]);
+			if (dClasses != null) {
+				classes.add(dClasses);
 			}
 		}
 		return classes;
 	}
 	
-	private static List<DocletifyClass> readJavadocFile(String docletFileName) throws FileNotFoundException {
+	private static List<DocletifyClass> readJavadocFile(String docletFileName) {
 	    File javadocFile = new File(userDir + "/output/" + docletFileName + "_output.txt");
-
 	    if(!javadocFile.exists())
             return null;
 	    
-	    Scanner scan = new Scanner(javadocFile);
-
-	    String[] skip = new String[] {"Loading source files", "Constructing Javadoc"};
-        List<DocletifyClass> classes = new ArrayList<>();
-
+        List<DocletifyClass> dClasses = new ArrayList<DocletifyClass>();
         String line = null;
-	    while (scan.hasNextLine()) {
-	        line = scan.nextLine();
-	        if (!line.startsWith(skip[0]) && !line.startsWith(skip[1]) && !Character.isDigit(line.charAt(0))) {
-                DocletifyClass dClass = parseClass(line);
-                if (dClass != null) {
-                	classes.add(dClass);	
-                }
-            }
-        }
 	    
+	    Scanner scan = null;
+		try {
+			scan = new Scanner(javadocFile);
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+			return dClasses;
+		}
+		
+		if (scan.hasNextLine()) {
+			line = scan.nextLine();
+		} else {
+			scan.close();
+			return dClasses;
+		}
+        
+        while (scan.hasNextLine()) {
+    		line = scan.nextLine();
+        	if (!line.startsWith("Loading source files") && !line.startsWith("Constructing Javadoc") && !Character.isDigit(line.charAt(0))) {
+            	try {
+    				dClasses.add(mapper.readValue(line,  DocletifyClass.class));
+    			} catch (JsonParseException e) {
+    				e.printStackTrace();
+    			} catch (JsonMappingException e) {
+    				e.printStackTrace();
+    			} catch (IOException e) {
+    				e.printStackTrace();
+    			}
+        	}
+        }
+        	    
 	    scan.close();
-	    javadocFile.delete();
-
-	    return classes;
+	    return dClasses;
     }
 	
 	private static void addAllClassesToSQL(List<List<DocletifyClass>> classes) {
 		for (List<DocletifyClass> dClasses : classes) {
-			addClassesToSQL(dClasses);
+			try {
+				addClassesToSQL(dClasses);
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
 		}
 	}
 	
-	private static void addClassesToSQL(List<DocletifyClass> classes) {
-		Connection conn = null;
-        try {
-        	String url = "jdbc:mysql://localhost:3306/docletify";
-        	String user = "BigTasty";
-        	String password = "password";
-        	
-        	conn = DriverManager.getConnection(url, user, password);
-        	
-        	for (DocletifyClass dClass : classes) {
-        		String classInsertQuery = "INSERT INTO class (name, package, type, fields, constructors, methods) VALUES (?, ?, ?, ?, ?, ?)";
-        		PreparedStatement classStatement = conn.prepareStatement(classInsertQuery);
-        		classStatement.setString(1, dClass.name);
-        		classStatement.setString(2, dClass.packageName);
-        		classStatement.setString(3, "");
-        		classStatement.setString(4, String.join(",", dClass.fields));
-        		classStatement.setString(5, String.join(",", dClass.constructors));
-        		classStatement.setString(6, "");
+	private static void addClassesToSQL(List<DocletifyClass> classes) throws IOException {
+		CloseableHttpClient client = HttpClientBuilder.create().build();
 
-        		for (DocletifyMethod dMethod : dClass.methods) {
-            		String methodInsertQuery = "INSERT INTO method (name, description) VALUES (?, ?)";
-        			PreparedStatement methodStatement = conn.prepareStatement(methodInsertQuery);
-        			methodStatement.setString(1, dMethod.name);
-        			methodStatement.setString(2, dMethod.description);
-        			methodStatement.execute();
-        		}
-        		        		
-        		classStatement.execute();
-        	}
+        try {        	
+        	int batchSize = 1;
         	
-        	PreparedStatement getAll = conn.prepareStatement("SELECT * FROM class");
-        	if (getAll.execute()) {
-            	ResultSet set = getAll.getResultSet();
-            	while (set.next()) {
-//            		System.out.println(set.getString(1) + " " + set.getString(2));
-            		set.next();
-            	}
-        	} else {
-        		System.out.println("Griffin wants fail.");
+        	for (int i = 0; i < classes.size(); i+=batchSize) {
+        		List<DocletifyClass> subClasses = new ArrayList<>();
+        		List<DocletifyType> enums = new ArrayList<>();
+        		List<DocletifyType> constructors = new ArrayList<>();
+        		List<DocletifyType> methods = new ArrayList<>();
+        		List<DocletifyType> fields = new ArrayList<>();
+
+        		int j = 0;
+        		while (j < batchSize && j + i < classes.size()) {
+    				DocletifyClass cur = classes.get(i + j);
+    				subClasses.add(cur);
+    				for (DocletifyType type : cur.enums) enums.add(type);
+    				for (DocletifyType type : cur.constructors) constructors.add(type);
+    				for (DocletifyType type : cur.methods) methods.add(type);
+    				for (DocletifyType type : cur.fields) fields.add(type);
+        			
+        			j++;
+        		}
+        		
+        		// Post constructors
+        		int[] constructorIds;
+        		if (constructors.size() > 0) {
+            		constructorIds = postTypes(client, constructors, "constructor/");
+            		for (int k = 0; k < subClasses.size(); k++) {        			
+            			DocletifyClass cur = subClasses.get(k);
+            			int numConstructors = cur.constructors.length;
+            			String constructorIdsString = "";
+            			
+            			for (int l = 0; l < numConstructors; l++, k++) {  
+            				if (k < constructorIds.length) {
+                				constructorIdsString += constructorIds[k];
+            				}
+            				if (l < numConstructors - 1) { // don't add a comma on the end
+            					constructorIdsString += ",";
+            				}
+            			}
+        				cur.constructorIds = constructorIdsString;
+        				System.out.println("\t constructors: " + constructorIdsString);;
+        				constructorIdsString = "";
+            		}
+        		}
+        		
+				// Post methods
+        		int[] methodIds;
+        		if (methods.size() > 0) {
+            		methodIds = postTypes(client, methods, "method/");
+            		for (int k = 0; k < subClasses.size(); k++) {        			
+            			DocletifyClass cur = subClasses.get(k);
+            			int numMethods = cur.methods.length;
+            			String methodIdsString = "";
+            			
+            			for (int l = 0; l < numMethods; l++, k++) {
+            				if (k < methodIds.length) {
+                				methodIdsString += methodIds[k];
+            				}
+            				if (l < numMethods - 1) {
+            					methodIdsString += ",";
+            				}
+            			}
+        				cur.methodIds = methodIdsString;
+        				System.out.println("\t methods: " + methodIdsString);;
+
+        				methodIdsString = "";
+            		}
+        		}
+				
+				// Post fields
+        		int[] fieldIds;
+        		if (fields.size() > 0) {
+            		fieldIds = postTypes(client, fields, "field/");  
+            		for (int k = 0; k < subClasses.size(); k++) {        			
+            			DocletifyClass cur = subClasses.get(k);
+            			int numFields = cur.fields.length;
+            			String fieldIdsString = "";
+            			
+            			for (int l = 0; l < numFields; l++, k++) {
+            				if (k < fieldIds.length) {
+                				fieldIdsString += fieldIds[k];
+            				}
+            				if (l < numFields - 1) {
+            					fieldIdsString += ",";
+            				}
+            			}
+        				cur.fieldIds = fieldIdsString;
+        				System.out.println("\t fields: " + fieldIdsString);;
+
+        				fieldIdsString = "";
+            		}
+        		}
+				
+				System.out.print(i + "/" + classes.size() + " -- ");
+        		postClasses(client, subClasses, "class/");
         	}
-        } catch (SQLException e) {
-        	 System.out.println(e.getMessage());
         } finally {
-        	try {
-        		if (conn != null)
-        			conn.close();
-        	} catch(SQLException ex) {
-        		 System.out.println(ex.getMessage());
-        	}
+        	client.close();
         }
 	}
 	
-	private static DocletifyClass parseClass(String line) {
-		if (line == null) return null;
-
-		JSONParser parser = new JSONParser();
+	private static int[] postTypes(CloseableHttpClient client, List<DocletifyType> types, String endpoint) {
+		HttpPost post =  new HttpPost(url + endpoint);
+		String json = null;
 		try {
-			JSONObject json = (JSONObject) parser.parse(line);
-			DocletifyClass dClass = new DocletifyClass();
-			dClass.name = (String) json.get("class_name");
-			dClass.packageName = (String) json.get("package_name");
-			dClass.type = (DocletifyType) json.get("type");
-			dClass.fields = new ArrayList<String>(((JSONArray) json.get("fields")));
-			dClass.constructors = new ArrayList<String>(((JSONArray) json.get("constructors")));
-			
-			JSONArray jsonMethods = (JSONArray) json.get("methods");
-			List<DocletifyMethod> dMethods = new ArrayList<DocletifyMethod>();
-			for (Object obj : jsonMethods) {
-				JSONObject jsonMethod = (JSONObject) obj;
-				DocletifyMethod dMethod = new DocletifyMethod();
-				dMethod.name = (String) jsonMethod.get("method_name");
-				dMethod.description = (String) jsonMethod.get("description");
-				dMethods.add(dMethod);
-			}
-			
-			dClass.methods = dMethods;
-			return dClass;
-		} catch (ParseException e) {
-			System.out.println(line);
+			json = mapper.writeValueAsString(types);
+		} catch (JsonProcessingException e) {
 			e.printStackTrace();
-			return null;
 		}
 		
-//		String[] isClass = line.split(":");
-//		if (isClass.length == 2) {
-//			String[] split = line.split(",");
-//	        if (split.length == 2) {
-//	            return new DocletifyClass(split[0], split[1]);
-//	        }
-//		}
-//		return null;
+		StringEntity params = new StringEntity(json, Charset.forName("UTF-8"));
+		post.setHeader("content-type", "application/json");
+		post.setEntity(params);        		
+		CloseableHttpResponse response = null;
+		try {
+			response = client.execute(post);
+		} catch (ClientProtocolException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		
+		StringBuilder sb = new StringBuilder();
+		try {
+		    BufferedReader reader = 
+		           new BufferedReader(new InputStreamReader(response.getEntity().getContent()), 65728);
+		    String line = null;
+
+		    while ((line = reader.readLine()) != null) {
+		        sb.append(line);
+		    }
+		}
+		catch (IOException e) { e.printStackTrace(); }
+		catch (Exception e) { e.printStackTrace(); }
+
+		String str = sb.toString();
+		int[] ids = parseIdsFromString(str);		
+		return ids;
+	}
+	
+	private static CloseableHttpResponse postClasses(CloseableHttpClient client, List<DocletifyClass> classes, String endpoint) {
+		HttpPost post =  new HttpPost(url + endpoint);
+		String json = null;
+		
+		if (classes != null && classes.size() > 0) {
+			System.out.print(classes.get(0).name + " : ");
+		}
+		
+		for (DocletifyClass dClass : classes) {
+			dClass.constructors = null;
+			dClass.methods = null;
+			dClass.fields = null;
+			dClass.enums = null;
+		}
+		
+		try {
+			json = mapper.writeValueAsString(classes);
+		} catch (JsonProcessingException e) {
+			e.printStackTrace();
+		}
+		StringEntity params = new StringEntity(json, Charset.forName("UTF-8"));
+		post.setHeader("content-type", "application/json");
+		post.setEntity(params);        		
+		CloseableHttpResponse response = null;
+		try {
+			response = client.execute(post);
+		} catch (ClientProtocolException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		
+		StringBuilder sb = new StringBuilder();
+		try {
+		    BufferedReader reader = 
+		           new BufferedReader(new InputStreamReader(response.getEntity().getContent()), 65728);
+		    String line = null;
+
+		    while ((line = reader.readLine()) != null) {
+		        sb.append(line);
+		    }
+		}
+		catch (IOException e) { e.printStackTrace(); }
+		catch (Exception e) { e.printStackTrace(); }
+
+		System.out.println(endpoint + " : " + sb.toString() + System.lineSeparator());
+		
+		return response;
+	}
+	
+	private static int[] parseIdsFromString(String line) {
+		String[] items = line.replaceAll("\\[", "").replaceAll("\\]", "").replaceAll("\\s", "").split(",");
+
+		int[] results = new int[items.length];
+
+		for (int i = 0; i < items.length; i++) {
+		    try {
+		        results[i] = Integer.parseInt(items[i]);
+		    } catch (NumberFormatException nfe) {
+		        //NOTE: write something here if you need to recover from formatting errors
+		    };
+		}
+		return results;
 	}
 }
